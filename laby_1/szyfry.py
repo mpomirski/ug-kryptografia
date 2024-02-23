@@ -3,7 +3,6 @@
 from string import ascii_lowercase, ascii_uppercase
 import argparse
 import math
-import numpy as np
 
 
 def affine_cipher(plaintext: str, key_a: int, key_b: int) -> str:
@@ -109,6 +108,60 @@ def decode_files_affine():
     return 0
 
 
+def full_analysis_affine():
+    encoded_text = ""
+    plaintext = ""
+    with open("crypto.txt") as f:
+        encoded_text = f.read().strip()
+    with open("plain.txt") as f:
+        plaintext = f.read().strip()
+    for a in range(1, 26):
+        if math.gcd(a, 26) != 1:
+            continue
+        for b in range(26):
+            if affine_cipher(plaintext, a, b) == encoded_text:
+                print(f"Key: {a} {b}")
+                return 0
+    print("Key not found")
+    return 1
+
+
+def key_analysis_affine():
+    encoded_text = ""
+    with open("crypto.txt") as f:
+        encoded_text = f.read().strip()
+    for a in range(1, 26):
+        if math.gcd(a, 26) != 1:
+            continue
+        for b in range(26):
+            print(f"Key: {a} {b} : {affine_decipher(encoded_text, a, b)}")
+    return 1
+
+
+def full_analysis_caesar():
+    encoded_text = ""
+    plaintext = ""
+    with open("crypto.txt") as f:
+        encoded_text = f.read().strip()
+    with open("plain.txt") as f:
+        plaintext = f.read().strip()
+    for b in range(26):
+        if caesar_cipher(plaintext, b) == encoded_text:
+            print(f"Key: {b}")
+            return 0
+    print("Key not found")
+    return 1
+
+
+def key_analysis_caesar():
+    encoded_text = ""
+    with open("crypto.txt") as f:
+        encoded_text = f.read().strip()
+    for b in range(26):
+        print(f"Key: {b} : {caesar_decipher(encoded_text, b)}")
+    return 1
+
+
 def cli():
     parser = argparse.ArgumentParser(
         description="Affine and Caesar cipher encoder/decoder.")
@@ -135,18 +188,18 @@ def cli():
         elif args.decode:
             decode_files_caesar()
         elif args.full_analysis:
-            raise NotImplementedError
+            full_analysis_caesar()
         elif args.key_analysis:
-            raise NotImplementedError
+            key_analysis_caesar()
     elif args.affine:
         if args.encode:
             encode_files_affine()
         elif args.decode:
             decode_files_affine()
         elif args.full_analysis:
-            raise NotImplementedError
+            full_analysis_affine()
         elif args.key_analysis:
-            raise NotImplementedError
+            key_analysis_affine()
 
 
 def main():
