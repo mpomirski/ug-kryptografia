@@ -113,14 +113,15 @@ def full_analysis_affine():
     plaintext = ""
     with open("crypto.txt") as f:
         encoded_text = f.read().strip()
-    with open("plain.txt") as f:
+    with open("extra.txt") as f:
         plaintext = f.read().strip()
     for a in range(1, 26):
         if math.gcd(a, 26) != 1:
             continue
         for b in range(26):
             if affine_cipher(plaintext, a, b) == encoded_text:
-                print(f"Key: {a} {b}")
+                with open("key-new.txt", "w") as f:
+                    f.write(f"{a} {b}")
                 return 0
     print("Key not found")
     return 1
@@ -130,11 +131,13 @@ def key_analysis_affine():
     encoded_text = ""
     with open("crypto.txt") as f:
         encoded_text = f.read().strip()
-    for a in range(1, 26):
-        if math.gcd(a, 26) != 1:
-            continue
-        for b in range(26):
-            print(f"Key: {a} {b} : {affine_decipher(encoded_text, a, b)}")
+    with open("key-new.txt", "w") as f:
+        for a in range(1, 26):
+            if math.gcd(a, 26) != 1:
+                continue
+            for b in range(26):
+                f.write(
+                    f"Key: {a} {b} : {affine_decipher(encoded_text, a, b)}\n")
     return 1
 
 
@@ -143,11 +146,12 @@ def full_analysis_caesar():
     plaintext = ""
     with open("crypto.txt") as f:
         encoded_text = f.read().strip()
-    with open("plain.txt") as f:
+    with open("extra.txt") as f:
         plaintext = f.read().strip()
     for b in range(26):
         if caesar_cipher(plaintext, b) == encoded_text:
-            print(f"Key: {b}")
+            with open("key-new.txt", "w") as f:
+                f.write(f"{b}")
             return 0
     print("Key not found")
     return 1
@@ -157,8 +161,9 @@ def key_analysis_caesar():
     encoded_text = ""
     with open("crypto.txt") as f:
         encoded_text = f.read().strip()
-    for b in range(26):
-        print(f"Key: {b} : {caesar_decipher(encoded_text, b)}")
+    with open("key-new.txt", "w") as f:
+        for b in range(26):
+            f.write(f"Key: {b} : {caesar_decipher(encoded_text, b)}\n")
     return 1
 
 
@@ -185,21 +190,40 @@ def cli():
     if args.caesar:
         if args.encode:
             encode_files_caesar()
+            print("Encoded")
+            print("Created crypto.txt")
         elif args.decode:
             decode_files_caesar()
+            print("Decoded")
+            print("Created decrypt.txt")
         elif args.full_analysis:
-            full_analysis_caesar()
+            if full_analysis_caesar() == 0:
+                print("Key found")
+                print("Created key-new.txt")
+
         elif args.key_analysis:
             key_analysis_caesar()
+            print("Key analysis done")
+            print("Created key-new.txt")
+
     elif args.affine:
         if args.encode:
             encode_files_affine()
+            print("Encoded")
+            print("Created crypto.txt")
         elif args.decode:
             decode_files_affine()
+            print("Decoded")
+            print("Created decrypt.txt")
         elif args.full_analysis:
-            full_analysis_affine()
+            if full_analysis_affine() == 0:
+                print("Key found")
+                print("Created key-new.txt")
+
         elif args.key_analysis:
             key_analysis_affine()
+            print("Key analysis done")
+            print("Created key-new.txt")
 
 
 def main():
