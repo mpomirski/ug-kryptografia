@@ -1,59 +1,70 @@
 from string import ascii_lowercase, digits
 import argparse
+from typing import List
 import math
 import random
+from functools import reduce
 
 def prepare_text(block_length: int = 64) -> None:
     ALLOWED_CHARS = ascii_lowercase + " " + digits
     output = ""
     with open("orig.txt", "r") as f:
-        output = f.read().strip()
+        output = f.read()
         output = output.lower()
         output = "".join([c for c in output if c in ALLOWED_CHARS])
     with open("plain.txt", "w") as f:
         for i in range(0, len(output), block_length):
-            f.write(output[i:i+block_length] + "\n") if i + block_length < len(output) else None
+            if i + block_length < len(output):
+                f.write(output[i:i+block_length])
+            if i < len(output)-2*block_length:
+                f.write('\n')
     print(f"Prepared plain.txt with block size of {block_length}.")
     
 def encode_text() -> None:
-    lines = []
+    plaintext: str = ""
     with open("plain.txt", "r") as f:
-        lines = [line.strip() for line in f.readlines()]
+        plaintext = f.read()
 
     with open("key.txt", "r") as f:
-        key = f.read().strip()
+        key: str = f.read()
 
-    with open("crypto", "w") as f:
-        for line in lines:
-            f.write(("".join([chr(ord(a) ^ ord(b)) for a, b in zip(line, key)]) + b'\n\n').encode("utf-8"))
+    with open("crypto.txt", "w") as f:
+        for i, char in enumerate(plaintext):
+            f.write(chr(ord(char) ^ ord(key[i % len(key)])))
     print("Encoded plain.txt with key.txt and saved to crypto.txt.")
 
-def decode_text(block_length: int = 64) -> None:
-    file = ""
-    with open("crypto.txt", "rb") as f:
-        file = f.read()
-    print(len(file.split(b"\n\n")))
-    
+def decode_text() -> None:
+    file: str = ""
+    key: str = ""
 
-    # for line in file:
-    #     print(line.decode("utf-8"))
+    with open("crypto.txt", "r") as crypto:
+        file = crypto.read()
+    with open("key.txt", "r") as key_file:
+        key = key_file.read()
 
-    # with open("key.txt", "r") as f:
-    #     key = f.read().strip()
-
-    # with open("decoded.txt", "w") as f:
-    #     for line in lines:
-    #         f.write("".join([chr(ord(a) ^ ord(b)) for a, b in zip(line, key)]) + "\n")
+    with open("decoded.txt", "w") as f:
+        for i, char in enumerate(file):
+            if chr(ord(char) ^ ord(key[i % len(key)])) == "'":
+                f.write(" ")
+            else:
+                f.write(chr(ord(char) ^ ord(key[i % len(key)])))
     print("Decoded crypto.txt with key.txt and saved to decoded.txt.")
 
-def cryptoanalysis() -> None:
+def cryptoanalysis(block_size: int = 64) -> None:
     with open("crypto.txt", "r") as f:
-        crypto = f.read().strip().split("\n")
+        crypto_text: str = f.read()
+    crypto = [crypto_text[i:i+block_size] for i in range(0, len(crypto_text), block_size)]
     
     xors = []
-    for i in range(0, len(crypto)):
-        for j in range(i+1, len(crypto)):
-            xors.append((i, j, "".join([chr(ord(a) ^ ord(b)) for a, b in zip(crypto[i], crypto[j])])))
+    for i in range(len(crypto)-1):
+        xors.append("".join([chr(ord(a) ^ ord(b)) for a, b in zip(crypto[i], crypto[i+1])]))
+    print(xors)
+    # found_key = ""
+
+    # print(found_key)    
+    
+
+    
 
 def cli():
     parser = argparse.ArgumentParser(
