@@ -17,12 +17,20 @@ slowa xor klucz = {
 
 kryptoanaliza:
 	 a	  b        c        d         e
-m1 ^ m2	(00001100
+m1 ^ m2	(00001100 - m1 oraz m2 znaki
 m2 ^ m3	(01001110 - m2 lub m3 spacja; drugi znak = "n"(110)
 m3 ^ m4	(01010010 - m3 lub m4 spacja; drugi znak = "r"
-m4 ^ m5	(00011011
+m4 ^ m5	(00011011 - m4 oraz m5 znaki
 
 m2 = n; m3 = " "; m4 = "r"
+
+	 a	  b        c        d         e
+m1 ^ m2	(00001100 - m1 oraz m2 znaki, m1 = "n" ^ 00001100 = "b"
+m2 ^ m3	(01001110 - m2 lub m3 spacja; drugi znak = "n"(110)
+m3 ^ m4	(01010010 - m3 lub m4 spacja; drugi znak = "r"
+m4 ^ m5	(00011011 m4 oraz m5 znaki, m5 = "r" ^ 00011011 = "i"
+
+m1 = b; m2 = n; m3 = " "; m4 = "r"; m5 = "i"
 
 Zasady:
 	Jeśli m1 ^ m2 = 010..., to m1 lub m2 jest spacją, 
