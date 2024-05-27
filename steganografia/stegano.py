@@ -1,7 +1,7 @@
 # Michał Pomirski 24.05.2024
 from abc import ABC, abstractmethod
-from bs4 import BeautifulSoup, ResultSet, Tag
-
+from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
+from argparse import ArgumentParser, Namespace
 class Helper:
     @staticmethod
     def count_bitlength_from_hex(n: int) -> int:
@@ -32,17 +32,10 @@ class SteganoStrategy(ABC):
     def encode(self, cover: str, hex_payload: int) -> str:
         pass
 
+    @staticmethod
     @abstractmethod
-    def decode(self, stego: str) -> str:
+    def decode(stego: str) -> str:
         pass
-
-    @abstractmethod
-    def save_encoded(self, stego: str) -> None:
-        Helper.save_encoded(stego)
-
-    @abstractmethod
-    def save_decoded(self, plaintext: str) -> None:
-        Helper.save_decoded(plaintext)
     
     @abstractmethod
     def is_file_big_enough_to_hide(self, cover: str, hex_payload: int) -> bool:
@@ -69,7 +62,8 @@ class SteganoUsingSpacesAtTheEnd(SteganoStrategy):
         lines[number_of_bits] += chr(127) # End of text
         return '\n'.join(lines)
 
-    def decode(self, stego: str) -> str:
+    @staticmethod
+    def decode(stego: str) -> str:
         lines: list[str] = stego.split('\n')
         payload: str = ''
         result: str = ''
@@ -86,13 +80,14 @@ class SteganoUsingSpacesAtTheEnd(SteganoStrategy):
         return result
     
     def save_encoded(self, stego: str) -> None:
-        return super().save_encoded(stego)
+        return Helper.save_encoded(stego)
     
-    def save_decoded(self, plaintext: str) -> None:
-        return super().save_decoded(plaintext)
+    @staticmethod
+    def save_decoded(plaintext: str) -> None:
+        return Helper.save_decoded(plaintext)
 
     def is_file_big_enough_to_hide(self, cover: str, hex_payload: int) -> bool:
-        return len(cover.split('\n')) >= Helper.count_bitlength_from_hex(hex_payload)
+        return len(cover.split('\n')) > Helper.count_bitlength_from_hex(hex_payload)
 
 class SteganoUsingDoubleSpaces(SteganoStrategy):
     '''
@@ -130,7 +125,8 @@ class SteganoUsingDoubleSpaces(SteganoStrategy):
                     result.append(char)
         return ''.join(result)
 
-    def decode(self, stego: str) -> str:
+    @staticmethod
+    def decode(stego: str) -> str:
         payload: str = ''
         result: str = ''
         i = 0
@@ -152,13 +148,13 @@ class SteganoUsingDoubleSpaces(SteganoStrategy):
         return result
     
     def is_file_big_enough_to_hide(self, cover: str, hex_payload: int) -> bool:
-        return cover.count(' ') >= Helper.count_bitlength_from_hex(hex_payload)
+        return cover.count(' ') > Helper.count_bitlength_from_hex(hex_payload)
     
     def save_decoded(self, plaintext: str) -> None:
-        return super().save_decoded(plaintext)
+        return Helper.save_decoded(plaintext)
     
     def save_encoded(self, stego: str) -> None:
-        return super().save_encoded(stego)
+        return Helper.save_encoded(stego)
 
 class SteganoUsingTypos(SteganoStrategy):
     '''
@@ -205,8 +201,10 @@ class SteganoUsingTypos(SteganoStrategy):
         paragraphs[number_of_bits].attrs['line-height'] = '100%'
         return self.parser.prettify()
     
-    def decode(self, stego: str) -> str:
-        paragraphs: ResultSet[Tag] = self.parser.find_all('p')
+    @staticmethod
+    def decode(stego: str) -> str:
+        parser: BeautifulSoup = BeautifulSoup(stego, 'html.parser')
+        paragraphs: ResultSet[Tag] = parser.find_all('p')
         payload: str = ''
         result: str = ''
         for p in paragraphs:
@@ -224,25 +222,101 @@ class SteganoUsingTypos(SteganoStrategy):
     def is_file_big_enough_to_hide(self, cover: str, hex_payload: int) -> bool:
         all_paragraphs: ResultSet[Tag] = self.parser.find_all('p')
         number_of_paragraphs_without_attributes: int = len([p for p in all_paragraphs if 'margin-bottom' not in p.attrs and 'line-height' not in p.attrs])
-        return number_of_paragraphs_without_attributes >= Helper.count_bitlength_from_hex(hex_payload)
+        return number_of_paragraphs_without_attributes > Helper.count_bitlength_from_hex(hex_payload)
     
     def save_decoded(self, plaintext: str) -> None:
-        super().save_decoded(plaintext)
+        Helper.save_decoded(plaintext)
     
     def save_encoded(self, stego: str) -> None:
-        super().save_encoded(stego)
+        Helper.save_encoded(stego)
     
-class SteganoUsingSelfRedundantTags(SteganoStrategy):
+class SteganoUsingRedundantTags(SteganoStrategy):
     '''
         This strategy uses redundant tags to encode the message.
         The message is encoded in the following way:
         1. The message is converted to binary.
-        2. For each self-closing tag in the cover file, the tag is replaced with an explicit closing tag.
-            Eg. <img src="image.jpg" /> -> <img src="image.jpg"></img> represents 0
-                <img src="image.jpg" /> -> <img src="image.jpg"></img></img> represents 1
+        2. For each anchor tag in the cover file, unneccessary tags are added.
+            An additional tag at the the start of the tag represents 1, and an additional tag at the end of the tag represents 0
+            Eg. <a> anchor </a> -> <a></a><a> paragraph </a> represents 1
+                <a> anchor </a> -> <a> paragraph </a><a></a> represents 0
+        3. At the end of the message, the redundant tag is placed both at the start and at the end of the tag.
     '''
     def __init__(self, cover: str, payload: int) -> None:
-        raise NotImplementedError
+        self.parser: BeautifulSoup = BeautifulSoup(cover, 'html.parser')
+        self.cover = self.remove_redundant_tags()
+        super().__init__(cover, payload)
+    
+    def remove_redundant_tags(self) -> str:
+        html: ResultSet[Tag] = self.parser.find_all(lambda tag: not tag.contents and not tag.attrs)
+        for tag in html:
+            tag.extract()
+        return self.parser.prettify()
+    
+    
+    def save_decoded(self, plaintext: str) -> None:
+        Helper.save_decoded(plaintext)
+    
+    def save_encoded(self, stego: str) -> None:
+        Helper.save_encoded(stego)
+
+    def save_sanitized(self) -> None:
+        with open('sanitized.html', 'w', encoding='utf-8') as file:
+            file.write(self.parser.prettify())
+    
+    def encode(self, cover: str, hex_payload: int) -> str:
+        anchor_tags: ResultSet[Tag] = self.parser.find_all('a')
+        payload_bits: str = bin(hex_payload)[2:]
+        number_of_bits: int = len(payload_bits)
+        for i, bit in enumerate(payload_bits):
+            if bit == '1':
+                anchor_tags[i].insert_before(self.parser.new_tag('a')) # type: ignore
+            elif bit == '0':
+                anchor_tags[i].insert_after(self.parser.new_tag('a')) # type: ignore
+        anchor_tags[number_of_bits].insert_after(self.parser.new_tag('span')) # type: ignore
+        anchor_tags[number_of_bits].insert_before(self.parser.new_tag('span')) # type: ignore
+        return self.parser.prettify()
+    
+    @staticmethod
+    def decode(stego: str) -> str:
+        parser: BeautifulSoup = BeautifulSoup(stego, 'lxml')
+        anchor_tags: ResultSet[Tag] = parser.find_all('a')
+        payload: str = ''
+        result: str = ''
+        payload = ''
+        i = 0
+        while i < len(anchor_tags):
+            a: Tag = anchor_tags[i]
+            next_sibling: Tag | NavigableString | None = a.find_next_sibling()
+            previous_sibling: Tag | NavigableString | None = a.find_previous_sibling()
+
+            # <a> paragraph </a><a></a> represents 0
+            if ((len(a.contents) != 0 or len(a.attrs) != 0 or len(a.contents) != 1) and next_sibling and next_sibling.name == 'a' and ((len(next_sibling.contents) == 0 and len(next_sibling.attrs) == 0) or len(next_sibling.contents) == 1)):
+                payload += '0'
+                i += 1
+            
+            # <a></a><a> paragraph </a> represents 1
+            if ((len(a.contents) == 0 or len(a.contents) == 1) and next_sibling and next_sibling.name == 'a' and (len(next_sibling.contents) != 0 or len(next_sibling.attrs) != 0 or len(next_sibling.contents) != 1)):
+                payload += '1'
+                i += 2
+
+            # <a> paragraph </a><span></span> is an end of the message
+            elif ((len(a.contents) != 0 or len(a.contents) != 1)
+                and next_sibling and next_sibling.name == 'span' and (len(next_sibling.contents) == 0 or len(next_sibling.contents) == 1)
+                and previous_sibling and previous_sibling.name == 'span' and (len(previous_sibling.contents) == 0 or len(previous_sibling.contents) == 1)
+                ): 
+                break
+
+            else:
+                i += 1
+        hex_payload: str = hex(int(payload, 2))[2:]
+        print(payload, hex_payload)
+        for i in range(0, len(hex_payload), 2):
+            result += chr(int(hex_payload[i] + hex_payload[i+1], 16))
+        return result
+    
+    def is_file_big_enough_to_hide(self, cover: str, hex_payload: int) -> bool:
+        number_of_anchor_tags: int = len(self.parser.find_all('a'))
+        return number_of_anchor_tags > Helper.count_bitlength_from_hex(hex_payload)
 
 def read_cover() -> str:
     # Read the cover file removing empty lines
@@ -256,30 +330,66 @@ def read_cover() -> str:
 def read_payload() -> int:
     # Read the payload file encoded in hex
     with open('mess.txt', 'r', encoding='utf-8', errors='ignore') as file:
-        return int(file.read(), 16)
+        content: str = file.read()
+        return int(content, 16)
 
 def read_encoded() -> str:
     # Read the encoded file
     with open('watermark.html', 'r', encoding='utf-8', errors='ignore') as file:
         return file.read()
 
+def menu() -> Namespace:
+    parser: ArgumentParser = ArgumentParser(
+        prog='stegano.py',
+        description='Steganography using HTML files.'
+    )
+    choice = parser.add_mutually_exclusive_group(required=True)
+    choice.add_argument('-e', '--encode', action='store_true', help='Encode the message.')
+    choice.add_argument('-d', '--decode', action='store_true', help='Decode the message.')
+    type_of_stegano = parser.add_mutually_exclusive_group(required=True)
+    type_of_stegano.add_argument('-1', '--spaces', action='store_true', help='Use spaces at the end of the line.')
+    type_of_stegano.add_argument('-2', '--double_spaces', action='store_true', help='Use double spaces.')
+    type_of_stegano.add_argument('-3', '--typos', action='store_true', help='Use typos.')
+    type_of_stegano.add_argument('-4', '--redundant_tags', action='store_true', help='Use redundant tags.')
+
+    return parser.parse_args()
+
 
 def main() -> None:
-    # First type
-    cover: str = read_cover()
-    payload: int = read_payload()
-    # stego: SteganoStrategy = SteganoUsingSpacesAtTheEnd(cover, payload)
-    # stego.save_encoded(stego.encode(stego.cover, stego.payload))
-    # stego.save_decoded(stego.decode(read_encoded()))
-    # Second type
-    # stego_2: SteganoStrategy = SteganoUsingDoubleSpaces(cover, payload)
-    # stego_2.save_encoded(stego_2.encode(stego_2.cover, stego_2.payload))
-    # stego_2.save_decoded(stego_2.decode(read_encoded()))
-    # Third type
-    stego_3: SteganoStrategy = SteganoUsingTypos(cover, payload)
-    stego_3.save_encoded(stego_3.encode(stego_3.cover, stego_3.payload))
-    stego_3.save_decoded(stego_3.decode(read_encoded()))
+    args: Namespace = menu()
+    # Handle the arguments
+    if args.encode:
+        cover: str = read_cover()
+        payload: int = read_payload()
+        if args.spaces:
+            stego: SteganoStrategy = SteganoUsingSpacesAtTheEnd(cover, payload)
+            stego.save_encoded(stego.encode(stego.cover, stego.payload))
+        elif args.double_spaces:
+            stego: SteganoStrategy = SteganoUsingDoubleSpaces(cover, payload)
+            stego.save_encoded(stego.encode(stego.cover, stego.payload))
+        elif args.typos:
+            stego: SteganoStrategy = SteganoUsingTypos(cover, payload)
+            stego.save_encoded(stego.encode(stego.cover, stego.payload))
+        elif args.redundant_tags:
+            stego: SteganoStrategy = SteganoUsingRedundantTags(cover, payload)
+            stego.save_encoded(stego.encode(stego.cover, stego.payload))
+    elif args.decode:
+        encoded: str = read_encoded()
+        if args.spaces:
+            print(SteganoUsingSpacesAtTheEnd.decode(encoded))
+            Helper.save_decoded(SteganoUsingSpacesAtTheEnd.decode(encoded))
+        elif args.double_spaces:
+            print(SteganoUsingDoubleSpaces.decode(encoded))
+            Helper.save_decoded(SteganoUsingDoubleSpaces.decode(encoded))
+        elif args.typos:
+            print(SteganoUsingTypos.decode(encoded))
+            Helper.save_decoded(SteganoUsingTypos.decode(encoded))
+        elif args.redundant_tags:
+            print(SteganoUsingRedundantTags.decode(encoded))
+            Helper.save_decoded(SteganoUsingRedundantTags.decode(encoded))
 
 
 if __name__ == '__main__':
     main()
+
+# TODO: Fix the redundant tags strategy
